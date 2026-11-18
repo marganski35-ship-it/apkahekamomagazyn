@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spis palet</title>
+<meta name="theme-color" content="#12343b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Spis palet">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>Spis palet</h1>
+  <button type="button" class="pallet-chip" id="pallet-button" aria-haspopup="dialog">
+    <span class="pallet-chip__label">Paleta</span>
+    <span class="pallet-chip__value" id="pallet-current">wybierz</span>
+  </button>
+</header>
+
+<main>
+  <section class="summary" aria-label="Podsumowanie palety">
+    <div class="summary__cell"><span class="summary__num" id="sum-positions">0</span><span class="summary__label">pozycji</span></div>
+    <div class="summary__cell"><span class="summary__num" id="sum-pieces">0</span><span class="summary__label">sztuk</span></div>
+    <div class="summary__cell"><span class="summary__num" id="sum-value">0</span><span class="summary__label">zł orientacyjnie</span></div>
+  </section>
+
+  <section class="scan" aria-label="Skanowanie">
+    <button type="button" class="btn btn--scan" id="scan-button">Skanuj kod aparatem</button>
+    <form class="scan__manual" id="ean-form" autocomplete="off">
+      <label class="visually-hidden" for="ean-input">EAN wpisany ręcznie lub ze skanera</label>
+      <input id="ean-input" name="ean" inputmode="numeric" placeholder="EAN ręcznie lub ze skanera" enterkeyhint="search">
+      <button type="submit" class="btn">Szukaj</button>
+    </form>
+    <div class="scan__row">
+      <button type="button" class="btn btn--ghost" id="nocode-button">Produkt bez kodu</button>
+      <label class="switch" for="series-toggle">
+        <input type="checkbox" id="series-toggle">
+        <span>Seria: powtórki +1 bez pytania</span>
+      </label>
+    </div>
+    <p class="notice" id="mode-notice" hidden></p>
+  </section>
+
+  <div class="undo" id="undo-bar" hidden>
+    <span id="undo-text"></span>
+    <button type="button" class="btn btn--small" id="undo-button">Cofnij</button>
+  </div>
+
+  <section aria-label="Pozycje na palecie">
+    <div class="list-head">
+      <h2 id="list-title">Pozycje</h2>
+      <button type="button" class="btn btn--small" id="export-button">Eksport</button>
+    </div>
+    <ul class="items" id="items"></ul>
+    <p class="empty" id="empty" hidden></p>
+  </section>
+</main>
+
+<!-- Wybór palety -->
+<dialog id="pallet-dialog" class="sheet" aria-labelledby="pallet-title">
+  <form method="dialog" id="pallet-form" class="sheet__body">
+    <h2 id="pallet-title">Paleta</h2>
+    <div class="pallet-list" id="pallet-list"></div>
+    <div class="field-row">
+      <div class="field">
+        <label for="pallet-new">Nowa paleta</label>
+        <input id="pallet-new" placeholder="np. P01" autocapitalize="characters" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="pallet-location">Lokalizacja (opcjonalnie)</label>
+        <input id="pallet-location" placeholder="np. Regał A2" autocomplete="off">
+      </div>
+    </div>
+    <p class="form-error" id="pallet-error" role="alert" hidden></p>
+    <div class="actions">
+      <button type="button" class="btn btn--ghost" data-close>Zamknij</button>
+      <button type="submit" class="btn btn--primary" id="pallet-add">Dodaj i wybierz</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Skaner -->
+<dialog id="scanner-dialog" class="scanner" aria-label="Skaner kodów">
+  <video id="scanner-video" playsinline muted></video>
+  <div class="scanner__frame" aria-hidden="true"></div>
+  <p class="scanner__hint" id="scanner-hint">Ustaw kod kreskowy w ramce</p>
+  <div class="scanner__actions">
+    <button type="button" class="btn" id="torch-button" hidden>Latarka</button>
+    <button type="button" class="btn" id="scanner-close">Zamknij</button>
+  </div>
+</dialog>
+
+<!-- Powtórzony EAN -->
+<dialog id="dup-dialog" class="sheet" aria-labelledby="dup-title">
+  <div class="sheet__body">
+    <h2 id="dup-title">Ten produkt jest już na palecie</h2>
+    <div class="dup-info" id="dup-info"></div>
+    <div class="dup-merge" id="dup-merge">
+      <div class="field field--inline">
+        <label for="dup-qty">Dodaj sztuk</label>
+        <input id="dup-qty" type="number" inputmode="numeric" min="1" value="1">
+      </div>
+      <button type="button" class="btn btn--primary" id="dup-increase">Zwiększ ilość</button>
+    </div>
+    <button type="button" class="btn" id="dup-separate">Zapisz jako osobną sztukę</button>
+    <p class="hint">Osobna sztuka dostaje własny numer i własny stan, np. uszkodzona albo niekompletna.</p>
+    <button type="button" class="btn btn--ghost" id="dup-cancel">Anuluj skan</button>
+  </div>
+</dialog>
+
+<!-- Pozycja -->
+<dialog id="item-dialog" class="sheet" aria-labelledby="item-title">
+  <form id="item-form" class="sheet__body" autocomplete="off" novalidate>
+    <div class="sheet__head">
+      <h2 id="item-title">Nowa pozycja</h2>
+      <span class="sku-badge" id="item-sku"></span>
+    </div>
+    <p class="status" id="item-status" role="status"></p>
+    <div class="candidates" id="item-candidates" hidden></div>
+
+    <div class="field">
+      <label for="f-name">Nazwa produktu</label>
+      <textarea id="f-name" rows="2" required></textarea>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="f-brand">Marka</label><input id="f-brand"></div>
+      <div class="field"><label for="f-model">Model</label><input id="f-model"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="f-ean">EAN</label><input id="f-ean" inputmode="numeric"></div>
+      <div class="field field--narrow"><label for="f-qty">Ilość</label><input id="f-qty" type="number" inputmode="numeric" min="1" value="1"></div>
+    </div>
+    <div class="field">
+      <label for="f-state">Stan</label>
+      <select id="f-state"></select>
+    </div>
+    <div class="field">
+      <label for="f-notes">Uwagi <span id="notes-required" hidden>(wymagane przy tym stanie)</span></label>
+      <textarea id="f-notes" rows="2"></textarea>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="f-location">Lokalizacja</label><input id="f-location"></div>
+      <div class="field field--narrow"><label for="f-price">Cena, zł</label><input id="f-price" type="number" inputmode="decimal" min="0" step="0.01"></div>
+    </div>
+
+    <div class="photos">
+      <label class="btn btn--ghost photos__add" for="f-photos">Dodaj zdjęcie</label>
+      <input id="f-photos" type="file" accept="image/*" capture="environment" multiple class="visually-hidden">
+      <div class="photos__strip" id="photo-strip"></div>
+    </div>
+
+    <p class="form-error" id="item-error" role="alert" hidden></p>
+    <div class="actions actions--stack">
+      <button type="submit" class="btn btn--primary" id="item-save-next" value="next">Zapisz i skanuj dalej</button>
+      <div class="actions">
+        <button type="button" class="btn btn--danger" id="item-delete" hidden>Usuń</button>
+        <button type="button" class="btn btn--ghost" id="item-cancel">Anuluj</button>
+        <button type="submit" class="btn" id="item-save" value="stay">Zapisz</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- Eksport -->
+<dialog id="export-dialog" class="sheet" aria-labelledby="export-title">
+  <div class="sheet__body">
+    <h2 id="export-title">Eksport spisu</h2>
+    <fieldset class="choice">
+      <legend>Zakres</legend>
+      <label><input type="radio" name="export-scope" value="current" checked> <span id="export-scope-current">Bieżąca paleta</span></label>
+      <label><input type="radio" name="export-scope" value="all"> Wszystkie palety</label>
+    </fieldset>
+    <fieldset class="choice">
+      <legend>Kolumny</legend>
+      <div class="columns" id="export-columns"></div>
+    </fieldset>
+    <p class="form-error" id="export-error" role="alert" hidden></p>
+    <div class="actions actions--stack">
+      <button type="button" class="btn btn--primary" id="export-xlsx">Pobierz Excel (XLSX)</button>
+      <div class="actions">
+        <button type="button" class="btn btn--ghost" data-close>Zamknij</button>
+        <button type="button" class="btn" id="export-copy">Kopiuj tabelę</button>
+        <button type="button" class="btn" id="export-csv">CSV</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<!-- Potwierdzenie -->
+<dialog id="confirm-dialog" class="sheet" aria-labelledby="confirm-title">
+  <div class="sheet__body">
+    <h2 id="confirm-title">Na pewno?</h2>
+    <p id="confirm-text"></p>
+    <div class="actions">
+      <button type="button" class="btn btn--ghost" id="confirm-no">Zostaw</button>
+      <button type="button" class="btn btn--danger" id="confirm-yes">Usuń</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="config.js"></script>
+<script src="vendor/idb-keyval.js"></script>
+<script src="vendor/xlsx.mini.min.js"></script>
+<script src="vendor/barcode-detector.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

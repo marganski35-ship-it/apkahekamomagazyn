@@ -1,0 +1,16 @@
+{
+  "name": "Spis palet",
+  "short_name": "Spis palet",
+  "description": "Spis towaru z palet: skan EAN, numery magazynowe, eksport do Excela.",
+  "lang": "pl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12343b",
+  "theme_color": "#12343b",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
